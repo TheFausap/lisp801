@@ -19,4 +19,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="core801.lisp">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="small.lisp">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>
