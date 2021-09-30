@@ -262,7 +262,7 @@ st:
         lval e = caar(env);
         if (type || cp(e) ? car(e) == sym && (cdr(e) >> 4) == type : e == sym) {
             if (macro)
-                *macro = cp(e) && cdr(e) & 8;
+                *macro = cp(e) && cdr(e) & 32;
             return o2c(car(env)) + 1;
         }
     }
@@ -314,11 +314,11 @@ st:
 }
 
 lval gc(lval* f) {
-    int i;
+    lint i;
     lval* m;
-    int l;
+    lint l;
     int u = 0;
-    int ml = 0;
+    lint ml = 0;
     printf(";garbage collecting...\n");
     while (memf) {
         lval* n = (lval*)memf[0];
@@ -331,7 +331,7 @@ lval gc(lval* f) {
     for (; f > stack; f--) {
         if ((*f & 3) && (*f < memory ||
             *f >(memory + memory_size / sizeof(lval)))) {
-            printf("%x\n", *f);
+            printf("%llx\n", *f);
         }
         gcm(*f);
     }
@@ -365,7 +365,7 @@ lval gc(lval* f) {
         memf = m - ml;
         i += ml;
     }
-    printf(";done. %d free.\n", i);
+    printf(";done. %Id free.\n", i);
     return 0;
 }
 
@@ -374,7 +374,7 @@ lval gc(lval* f) {
  * Returns NULL if no free cells available.
  * The caller party may use n lval blocks if the returned pointer is not null.
  */
-lval* m0(int n) {
+lval* m0(lint n) {
     lval* m = memf; /* start searching from the first memory sub block */
     lval* p = 0; /* previous memory sub block */
 
@@ -412,7 +412,7 @@ lval* m0(int n) {
  * Allocates n lval units, applies gcm to the mgc lvals in variadic params.
  * Never returns NULL.
  */
-lval* cm0(lval* g, int n) {
+lval* cm0(lval* g, lint n) {
     lval* m;
     int i;
     for (i = 0; i < GC_MAX_RETRY; ++i) {
@@ -434,7 +434,7 @@ lval* cm0(lval* g, int n) {
  * Allocates iref
  */
 lval* ma0(lval* g, lint n) {
-    lval* m = cm0(g, n + 2);
+    lval* m = cm0(g, n + 2LL);
     *m = n << LVAL_IREF_SIZE_BIT_SHIFT;
     return m;
 }
@@ -442,14 +442,14 @@ lval* ma0(lval* g, lint n) {
 /**
  * Allocates jref
  */
-lval* ms0(lval* g, int n) {
-    lval* m = cm0(g, (n+12)/4);
+lval* ms0(lval* g, lint n) {
+    lval* m = cm0(g, (n+12LL)/4LL);
     *m = (n + 4) << LVAL_JREF_SIZE_BIT_SHIFT;
     return m;
 }
 
 lval* mb0(lval* g, lint n) {
-    lval* m = cm0(g, (n + 95) / 32);
+    lval* m = cm0(g, (n + 95LL) / 32LL);
     *m = (n + 31) << 3;
     return m;
 }
@@ -457,7 +457,7 @@ lval* mb0(lval* g, lint n) {
 X lval ma(lval* g, lint n, ...) {
     va_list v;
     int i;
-    lval* m = cm0(g, n + 2);
+    lval* m = cm0(g, n + 2LL);
     *m = n << 8;
     va_start(v, n);
     for (i = -1; i < n; i++) {
@@ -501,8 +501,8 @@ lint o2i(lval o) {
     return (lint)o2d(o);
 }
 
-unsigned long o2u(lval o) {
-    return (unsigned long)o2d(o);
+uintptr_t o2u(lval o) {
+    return (uintptr_t)o2d(o);
 }
 
 /**
@@ -560,7 +560,7 @@ lval rest(lval* h, lval* g) {
     return r;
 }
 
-lval args(lval*, lval, int);
+lval args(lval*, lval, lint);
 
 lval argd(lval* f, lval n, lval a) {
     if (cp(n)) {
@@ -575,7 +575,7 @@ lval argd(lval* f, lval n, lval a) {
     return cons(f, cons(f, n, a), *f);
 }
 
-lval args(lval* f, lval m, int c) {
+lval args(lval* f, lval m, lint c) {
     lval* g = f + 1;
     lval* h = f + c + 2;
     int t;
@@ -662,7 +662,7 @@ lval eval_body(lval* f, lval ex) {
     return T;
 }
 
-int map_eval(lval* f, lval ex) {
+lint map_eval(lval* f, lval ex) {
     lval* g = (lval*) f + 3;
     for (; ex; ex = cdr(ex), g++) {
         g[-1] = ((g - f - 3) << 5) | 16;
@@ -692,19 +692,19 @@ lval infn(lval* f, lval* h) {
     lval vs;
     lval* g = h + 1;
     lval fn = *f;
-    int d = h - f - 1;
+    lint d = h - f - 1;
     h[1] = o2a(fn)[3];
     NE = args(f, o2a(fn)[4], d);
-    g[-1] = cons(g, dyns, ms(g, 1, 20, &jmp));
+    g[-1] = cons(g, dyns, ms(g, 1, 20, (lval)&jmp));
     NE = cons(g, cons(g, cons(g, o2a(fn)[6], 64), g[-1]), NE);
     g[-1] = (d << 5) | 16;
-    if (!(vs = setjmp(jmp))) {
+    if (!(vs = (lval)setjmp(jmp))) {
         return eval_body(g, o2a(fn)[5]);
     }
     return mvalues(car(vs));
 }
 
-X lval call(lval* f, lval fn, unsigned d) {
+X lval call(lval* f, lval fn, uintptr_t d) {
     lval* g = f + d + 3;
     xvalues = 8;
     if (o2a(fn)[1] == 20) {
@@ -716,10 +716,10 @@ X lval call(lval* f, lval fn, unsigned d) {
     }
     *++f = fn;
     fn = o2a(fn)[2];
-    if (d < (unsigned)o2s(fn)[3]) {
+    if (d < (uintptr_t)o2s(fn)[3]) {
         dbgr(g, 7, 0, f);
     }
-    if (d > (unsigned) o2s(fn)[4]) {
+    if (d > (uintptr_t) o2s(fn)[4]) {
         dbgr(g, 6, 0, f);
     }
     return ((lval(*) ()) o2s(fn)[2]) (f, f + d + 1);
@@ -776,7 +776,7 @@ lval eval_let(lval* f, lval ex) {
     NF(3) T = car(ex);
     U = E;
     V = 0;
-    r = ma(g, 1, 84, 0);
+    r = ma(g, 1, 84, LVAL_NIL);
     dyns = cons(g, r, dyns);
     for (; T; T = cdr(T)) {
         V = evca(g, cdar(T));
@@ -803,7 +803,7 @@ lval eval_let(lval* f, lval ex) {
 lval eval_letm(lval* f, lval ex) {
     lval r;
     NF(2) T = U = 0;
-    r = ma(g, 1, 84, 0);
+    r = ma(g, 1, 84, LVAL_NIL);
     dyns = cons(g, r, dyns);
     for (T = car(ex); T; T = cdr(T)) {
         U = evca(g, cdar(T));
@@ -822,7 +822,7 @@ lval eval_letm(lval* f, lval ex) {
 lval eval_progv(lval* f, lval ex) {
     lval r;
     NF(2) T = U = 0;
-    r = ma(g, 1, 84, 0);
+    r = ma(g, 1, 84, LVAL_NIL);
     T = evca(g, ex);
     U = evca(g, cdr(ex));
     dyns = cons(g, r, dyns);
@@ -931,7 +931,7 @@ lval eval_tagbody(lval* f, lval ex) {
     lval tag;
     lval e;
     NF(2) T = U = 0;
-    U = ms(g, 1, 52, &jmp);
+    U = ms(g, 1, 52, (lval)&jmp);
     dyns = cons(g, U, dyns);
 
     for (e = ex; e; e = cdr(e)) {
@@ -977,7 +977,7 @@ lval eval_block(lval* f, lval ex) {
     jmp_buf jmp;
     lval vs;
     NF(2) T = U = 0;
-    T = ms(g, 1, 52, &jmp);
+    T = ms(g, 1, 52, (lval)&jmp);
     U = cons(g, dyns, T);
     dyns = cons(g, T, dyns);
     NE = cons(g, cons(g, cons(g, car(ex), 64), U), NE);
@@ -998,7 +998,7 @@ lval eval_return_from(lval* f, lval ex) {
     if (jmp) {
         unwind(g, car(b));
         T = rvalues(g, evca(g, cdr(ex)));
-        longjmp(*jmp, cons(g, T, 0));
+        longjmp(*jmp, cons(g, T, LVAL_NIL));
     }
     dbgr(g, 8, car(ex), &T);
     longjmp(top_jmp, 1);
@@ -1011,7 +1011,7 @@ lval eval_catch(lval* f, lval ex) {
     NF(2)
         T = U = 0;
     U = evca(g, ex);
-    T = ms(g, 1, 20, &jmp);
+    T = ms(g, 1, 20, (lval)&jmp);
     T = cons(g, U, T);
     dyns = cons(g, T, dyns);
     if (!(vs = setjmp(jmp))) {
@@ -1035,7 +1035,7 @@ st:
             unwind(g, c);
             T = evca(g, cdr(ex));
             T = rvalues(g, T);
-            longjmp(*(jmp_buf*)(o2s(cdar(c))[2]), cons(g, T, 0));
+            longjmp(*(jmp_buf*)(o2s(cdar(c))[2]), cons(g, T, LVAL_NIL));
         }
     }
     dbgr(g, 5, T, &T);
@@ -1211,16 +1211,16 @@ lval ldivi(lval* f, lval* h) {
 }
 
 lval ldpb(lval* f) {
-    int s = o2i(car(f[2]));
-    int p = o2i(cdr(f[2]));
-    int m = (1 << s) - 1;
+    lint s = o2i(car(f[2]));
+    lint p = o2i(cdr(f[2]));
+    lint m = (1LL << s) - 1LL;
     return d2o(f, (o2i(f[1]) & m) << p | (o2i(f[3]) & ~(m << p)));
 }
 
 lval lldb(lval* f) {
-    int s = o2i(car(f[1]));
-    int p = o2i(cdr(f[1]));
-    return d2o(f, o2i(f[2]) >> p & ((1 << s) - 1));
+    lint s = o2i(car(f[1]));
+    lint p = o2i(cdr(f[1]));
+    return d2o(f, o2i(f[2]) >> p & ((1LL << s) - 1LL));
 }
 
 lval lfloor(lval* f, lval* h) {
@@ -1240,7 +1240,7 @@ lval lgensym(lval* f) {
 }
 
 lval lcode_char(lval* f) {
-    unsigned int c = o2u(f[1]);
+    uintptr_t c = o2u(f[1]);
     return c < 256 ? 32 * c + 24 : 0;
 }
 
@@ -1280,7 +1280,7 @@ lval lival(lval* f) {
 
 lval lmakei(lval* f, lval* h) {
     int i = 2;
-    int l = o2i(f[1]);
+    lint l = o2i(f[1]);
     lval* r = ma0(h, l);
     r[1] = f[2] | 4;
     memset(r + 2, 0, 4 * o2i(f[1]));
@@ -1313,7 +1313,7 @@ lval liref(lval* f) {
 }
 
 lval setfiref(lval* f) {
-    int i = o2i(f[3]);
+    lint i = o2i(f[3]);
     if (i >= o2a(f[2])[0] / 256 + 2) {
         printf("out of bounds in setf iref\n");
     }
@@ -1356,7 +1356,7 @@ lval llisten_fs(lval* f) {
 }
 
 lval lread_fs(lval* f) {
-    int l = o2i(f[3]);
+    lint l = o2i(f[3]);
     if (!ReadFile(o2s(f[1])[3],
         o2z(f[2]) + l, (o2s(f[2])[0] >> 6) - 4 - l, &l, NULL))
         return 0;
@@ -1593,8 +1593,8 @@ lval lprint(lval* f) {
 
 lval lexit(lval* f) {
     lval x = f[1];
-    int code = (0 == (x & 3)) ? x >> 5 : 0;
-    exit(code);
+    lint code = (0 == (x & 3)) ? x >> 5 : 0;
+    exit((int)code);
     return 0;
 }
 
@@ -1642,7 +1642,7 @@ lval linspect(lval* f) {
             printf("PACKAGE");
             break;
         default:
-            printf("UNKNOWN-IREF(%d)", o2a(x)[1]);
+            printf("UNKNOWN-IREF(%Id)", o2a(x)[1]);
         }
         break;
     case 3:
@@ -1701,9 +1701,9 @@ char* exmsg[] = {
 
 int dbgr(lval* f, int x, lval val, lval* vp) {
     lval ex;
-    int i;
+    lint i;
     lval* h = f;
-    int l = 0;
+    lint l = 0;
     NF(0) ex = o2a(symi[59].sym)[5];
     if (ex != 8) {
         h++;
@@ -1718,7 +1718,7 @@ int dbgr(lval* f, int x, lval val, lval* vp) {
     printf("\n;restarts:\n;[t]oplevel\n;[u]se <form> instead\n;[r]eturn <form> from function\n");
     while (1) {
         lval* j;
-        printf(";%d> ", l);
+        printf(";%Id> ", l);
         ex = lread(g);
         if (ex == 8)
             longjmp(top_jmp, 1);
@@ -1735,7 +1735,7 @@ int dbgr(lval* f, int x, lval val, lval* vp) {
                 printf(";backtrace:\n");
                 j = f;
                 for (i = 0; j; i++) {
-                    printf(";%d: ", i);
+                    printf(";%Id: ", i);
                     if (j[0] >> 5 == 4) {
                         print(o2a(j[5])[6]);
                         printf(" ");
@@ -1763,7 +1763,7 @@ int dbgr(lval* f, int x, lval val, lval* vp) {
 lval evca(lval* f, lval co) {
     lval ex = car(co);
     lval x = ex;
-    int m = 0;
+    int m;
 
 ag:
     xvalues = 8;
@@ -1853,10 +1853,10 @@ lval read_string_list(lval* g) {
     return cons(g, (c << 5) | 24, read_string_list(g));
 }
 
-unsigned hash(lval s) {
+uintptr_t hash(lval s) {
     unsigned char* z = (unsigned char*)o2z(s);
-    unsigned i = 0, h = 0, g;
-    while (i < o2s(s)[0] / 64 - 4) {
+    uintptr_t i = 0, h = 0, g;
+    while (i < (uintptr_t) o2s(s)[0] / 64 - 4) {
         h = (h << 4) + z[i++];
         g = h & 0xf0000000;
         if (g) {
@@ -1953,7 +1953,7 @@ lval lread(lval* g) {
 }
 
 lval strf(lval* f, const char* s) {
-    int j = strlen(s);
+    size_t j = strlen(s);
     lval* str = ms0(f, j);
     str[1] = 20;
     for (j++; j; j--)
@@ -2048,16 +2048,16 @@ struct symbol_init symi[] = {
 };
 
 int main(int argc, char* argv[]) {
-    int stack_size = sizeof(lval) * 64 * 1024;
+    int stack_size = 4 * 64 * 1024;
     lval* g;
     lint i;
     lval sym;
-    memory_size = sizeof(lval) * 2048 * 1024;
+    memory_size = 8 * 2048 * 1024;
     memory = malloc(memory_size);
     memf = memory;
     memset(memory, 0, memory_size);
     memf[0] = 0;
-    memf[1] = memory_size / sizeof(lval);
+    memf[1] = memory_size / 8;
     stack = malloc(stack_size);
     memset(stack, 0, stack_size);
     g = stack + 5; /* TODO: constants for stack management */
