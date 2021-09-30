@@ -91,7 +91,6 @@ typedef lint lval;
     */
 #define LVAL_INLINE_TYPE    (0)
 
-
     /**
      * Cons cell
      */
@@ -109,14 +108,6 @@ typedef lint lval;
        */
 #define LVAL_JREF_TYPE      (3)
 
-
-
-       /**
-        * JREF objects.
-        * Sub types: simple-string, double, simple-bit-vector, file-stream
-        */
-#define LVAL_JREF_TYPE      (3)
-
         /**
          * Char code bit - applicable for ANUM type
          */
@@ -125,7 +116,6 @@ typedef lint lval;
          /* Int conversion to/from lval */
 #define LVAL_AS_INT(l)      ((l) >> 5)
 #define INT_AS_LVAL(l)      ((lval)(l) << 5)
-
 
 
 /**
@@ -501,7 +491,7 @@ lval d2o(lval* g, double d) {
         return x;
     }
 
-    a = ma0(g, 2);
+    a = ms0(g, 2);
     a[1] = 84;
     *(double*)(a + 2) = d;
     return s2o(a);
